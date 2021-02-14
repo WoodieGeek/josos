@@ -95,14 +95,17 @@ ASM_PFX(CallKernelThroughGateAsm):
     ; 2. Switch to our GDT that supports 64-bit mode and update CS to LINEAR_CODE_SEL.
     ; LAB 2: Your code here:
 
+
 AsmWithOurGdt:
 
     ; 3. Reset all the data segment registers to linear mode (LINEAR_DATA_SEL).
     ; LAB 2: Your code here:
 
+
     ; 4. Enable PAE/PGE in CR4, which is required to transition to long mode.
     ; This may already be enabled by the firmware but is not guaranteed.
     ; LAB 2: Your code here:
+
 
     ; 5. Update page table address register (C3) right away with the supplied PAGE_TABLE.
     ; This does nothing as paging is off at the moment as paging is disabled.
@@ -122,6 +125,7 @@ AsmInLongMode:
 
     ; 9. Reset all the data segment registers to linear 64-bit mode (LINEAR_DATA64_SEL).
     ; LAB 2: Your code here:
+
 
     ; 10. Jump to the kernel code.
     mov ecx, [REL LOADER_PARAMS]
