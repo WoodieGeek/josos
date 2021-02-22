@@ -114,7 +114,7 @@ InitGraphics (
   // Hint: Use GetMode/SetMode functions.
   //
 
-  UINT32 DesiredWidth = 1024U, DesiredHeight = 768U, MaxModIdx = -1U;
+  UINT32 DesiredWidth = 1152U, DesiredHeight = 870U, MaxModIdx = -1U;
   for (UINT32 i = 0; i < GraphicsOutput->Mode->MaxMode; i++) {
     EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *ModInfo;
     UINTN ModInfoSz;
@@ -1010,13 +1010,13 @@ UefiMain (
   VOID               *GateData;
 
 #if 1 ///< Uncomment to await debugging
-  volatile BOOLEAN   Connected;
-  DEBUG ((DEBUG_INFO, "JOS: Awaiting debugger connection\n"));
-
-  Connected = FALSE;
-  while (!Connected) {
-    ;
-  }
+//  volatile BOOLEAN   Connected;
+//  DEBUG ((DEBUG_INFO, "JOS: Awaiting debugger connection\n"));
+//
+//  Connected = FALSE;
+//  while (!Connected) {
+//    ;
+//  }
 #endif
 
   Status = gRT->GetTime (&Now, NULL);
