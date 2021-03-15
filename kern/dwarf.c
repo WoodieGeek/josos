@@ -558,8 +558,8 @@ address_by_fname(const struct Dwarf_Addrs *addrs, const char *fname, uintptr_t *
                      * To find it, we need to scan both abbreviation table and attribute values.
                      * You can read unsigned LEB128 number using dwarf_read_uleb128 function.
                      * Attribute value can be obtained using dwarf_read_abbrev_entry function. */
-                    uintptr_t low_pc = 0;
                     // LAB 3: Your code here:
+                    uintptr_t low_pc = 0;
 
 
                     *offset = low_pc;
