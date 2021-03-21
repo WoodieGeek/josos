@@ -89,7 +89,16 @@ env_init(void) {
     /* Set up envs array */
 
     // LAB 3: Your code here
-
+    env_free_list = &env_array[0];
+    for (int i = 0; i < NENV; ++i) {
+        env_array[i].env_status = ENV_FREE;
+        env_array[i].env_id = 0;
+        if (i != NENV - 1) {
+            env_array[i].env_link = &env_array[i + 1];
+        } else {
+            env_array[i].env_link = NULL;
+        }
+    }
 }
 
 /* Allocates and initializes a new environment.
@@ -146,7 +155,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_cs = GD_KT;
 
     // LAB 3: Your code here:
-    //static uintptr_t stack_top = 0x2000000;
+    static uintptr_t stack_top = 0x2000000;
+    env->env_tf.tf_rsp = stack_top;
+    stack_top -= PAGE_SIZE;
 #else
     env->env_tf.tf_ds = GD_UD | 3;
     env->env_tf.tf_es = GD_UD | 3;
@@ -167,6 +178,42 @@ static int
 bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_start, uintptr_t image_end) {
     // LAB 3: Your code here:
 
+    struct Elf *elf = (struct Elf *)(binary);
+    struct Secthdr *sh = (struct Secthdr *)(binary + elf->e_shoff);
+    uint16_t shnum = elf->e_shnum;
+    struct Secthdr *sym_tab = NULL;
+    struct Secthdr *str_tab = NULL;
+    while (shnum--) {
+        if (sh->sh_type == ELF_SHT_SYMTAB) {
+            sym_tab = sh;
+        } else if (sh->sh_type == ELF_SHT_STRTAB) {
+            if (str_tab == NULL) {
+                str_tab = sh;
+            }
+        }
+        ++sh;
+    }
+    if (sym_tab != NULL && str_tab != NULL) {
+        struct Elf64_Sym *elf64_sym = (struct Elf64_Sym *)(binary + sym_tab->sh_offset);
+        struct Elf64_Sym *elf64_sym_end = (struct Elf64_Sym *)(binary + sym_tab->sh_offset + sym_tab->sh_size);
+
+        const char *start_str_table = (char *)(binary + str_tab->sh_offset);
+
+        while (elf64_sym != elf64_sym_end) {
+            if (ELF_ST_BIND(elf64_sym->st_info) != STB_GLOBAL && ELF_ST_TYPE(elf64_sym->st_info) != STT_OBJECT) {
+                ++elf64_sym;
+                continue;
+            }
+            const char *func_name = start_str_table + elf64_sym->st_name;
+            uintptr_t find_func = find_function(func_name);
+            if (find_func == 0) {
+                ++elf64_sym;
+                continue;
+            }
+            memcpy((void *)elf64_sym->st_value, &find_func, sizeof(void *));
+            ++elf64_sym;
+        }
+    }
     /* NOTE: find_function from kdebug.c should be used */
 
     return 0;
@@ -217,6 +264,31 @@ static int
 load_icode(struct Env *env, uint8_t *binary, size_t size) {
     // LAB 3: Your code here
 
+    struct Elf *elf = (struct Elf *)(binary);
+    if (elf->e_magic != ELF_MAGIC) {
+        return -E_INVALID_EXE;
+    }
+    struct Proghdr *current_header = (struct Proghdr *)(binary + elf->e_phoff);
+    uint16_t phnum = elf->e_phnum;
+    while (phnum--) {
+        if (current_header->p_type != ELF_PROG_LOAD) {
+            ++current_header;
+            continue;
+        }
+
+        memset((void *)current_header->p_va, 0, current_header->p_memsz);
+
+        void *start_cpy = (void *)(binary + current_header->p_offset);
+        memcpy((void *)current_header->p_va, start_cpy, current_header->p_filesz);
+        ++current_header;
+    }
+
+    memset((void *)(env->env_tf.tf_rsp - PAGE_SIZE), 0, PAGE_SIZE);
+
+    env->env_tf.tf_rip = elf->e_entry;
+
+    bind_functions(env, binary, size, 0, 0);
+
     return 0;
 }
 
@@ -229,7 +301,13 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
     // LAB 3: Your code here
-
+    struct Env *result = NULL;
+    if (env_alloc(&result, 0, type) != 0) {
+        panic("Cannot allocate a new env");
+    }
+    if (load_icode(result, binary, size) != 0) {
+        panic("Cannot load env");
+    }
 }
 
 
@@ -258,7 +336,11 @@ env_destroy(struct Env *env) {
      * it traps to the kernel. */
 
     // LAB 3: Your code here
-
+    env_free(env);
+    if (env == curenv) {
+        curenv = NULL;
+        sched_yield();
+    }
 }
 
 #ifdef CONFIG_KSPACE
@@ -350,6 +432,13 @@ env_run(struct Env *env) {
     }
 
     // LAB 3: Your code here
+    if (curenv != NULL && curenv->env_status == ENV_RUNNING) {
+        curenv->env_status = ENV_RUNNABLE;
+    }
+    curenv = env;
+    curenv->env_status = ENV_RUNNING;
+    ++curenv->env_runs;
+    env_pop_tf(&curenv->env_tf);
 
-    while(1) {}
+    while (1) {}
 }

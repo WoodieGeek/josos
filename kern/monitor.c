@@ -64,17 +64,17 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf) {
     // LAB 2: Your code here
     cprintf("Stack backtrace:\n");
-    uint64_t* rbp = (uint64_t*) read_rbp();
+    uint64_t *rbp = (uint64_t *)read_rbp();
     while ((*rbp) != 0) {
-	 uint64_t rip = *(rbp + 1);
-         cprintf("  rbp %016lx  rip %016lx\n", (unsigned long)(rbp), (unsigned long)(rip));
+        uint64_t rip = *(rbp + 1);
+        cprintf("  rbp %016lx  rip %016lx\n", (unsigned long)(rbp), (unsigned long)(rip));
 
-	 struct Ripdebuginfo info;
-	 debuginfo_rip(rip, &info);
-	 cprintf("    %s:%d:", info.rip_file, info.rip_line);
-	 cprintf("  %.*s+%ld\n", info.rip_fn_namelen, info.rip_fn_name, rip - info.rip_fn_addr);
+        struct Ripdebuginfo info;
+        debuginfo_rip(rip, &info);
+        cprintf("    %s:%d:", info.rip_file, info.rip_line);
+        cprintf("  %.*s+%ld\n", info.rip_fn_namelen, info.rip_fn_name, rip - info.rip_fn_addr);
 
-	 rbp = (uint64_t *)(*rbp);
+        rbp = (uint64_t *)(*rbp);
     }
     cprintf("  rbp %016lx  rip %016lx\n", (unsigned long)(rbp), (unsigned long)(*(rbp + 1)));
     return 0;
@@ -129,6 +129,7 @@ monitor(struct Trapframe *tf) {
     cprintf("Type 'help' for a list of commands.\n");
 
     char *buf;
-    do buf = readline("K> ");
+    do
+        buf = readline("K> ");
     while (!buf || runcmd(buf, tf) >= 0);
 }
