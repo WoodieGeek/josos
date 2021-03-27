@@ -8,6 +8,7 @@
 #include <inc/elf.h>
 
 #include <kern/env.h>
+#include <kern/trap.h>
 #include <kern/monitor.h>
 #include <kern/sched.h>
 #include <kern/kdebug.h>
@@ -166,6 +167,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     env->env_tf.tf_rsp = USER_STACK_TOP;
 #endif
 
+    /* For now init trapframe with IF set */
+    env->env_tf.tf_rflags = FL_IF;
+
     /* Commit the allocation */
     env_free_list = env->env_link;
     *newenv_store = env;
@@ -250,7 +254,6 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
  *   'binary + ph->p_offset', should be copied to address
  *   ph->p_va.  Any remaining memory bytes should be cleared to zero.
  *   (The ELF header should have ph->p_filesz <= ph->p_memsz.)
- *   Use functions from the previous labs to allocate and map pages.
  *
  *   All page protection bits should be user read/write for now.
  *   ELF segments are not necessarily page-aligned, but you can
@@ -365,14 +368,6 @@ csys_yield(struct Trapframe *tf) {
 
 _Noreturn void
 env_pop_tf(struct Trapframe *tf) {
-
-    /* Push RIP on program stack */
-    tf->tf_rsp -= sizeof(uintptr_t);
-    *((uintptr_t *)tf->tf_rsp) = tf->tf_rip;
-    /* Push RFLAGS on program stack */
-    tf->tf_rsp -= sizeof(uintptr_t);
-    *((uintptr_t *)tf->tf_rsp) = tf->tf_rflags;
-
     asm volatile(
             "movq %0, %%rsp\n"
             "movq 0(%%rsp), %%r15\n"
@@ -392,8 +387,8 @@ env_pop_tf(struct Trapframe *tf) {
             "movq 112(%%rsp), %%rax\n"
             "movw 120(%%rsp), %%es\n"
             "movw 128(%%rsp), %%ds\n"
-            "movq (128+48)(%%rsp), %%rsp\n"
-            "popfq; ret" ::"g"(tf)
+            "addq $152,%%rsp\n" /* skip tf_trapno and tf_errcode */
+            "iretq" ::"g"(tf)
             : "memory");
 
     /* Mostly to placate the compiler */
