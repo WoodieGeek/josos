@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <inc/x86.h>
 
+#define IO_RTC_CMND 0x70
+#define IO_RTC_DATA 0x71
+
 #define RTC_NON_RATE_MASK(X)          (X & 0xF0)
 #define RTC_SET_NEW_RATE(input, rate) (RTC_NON_RATE_MASK(input) | rate)
 #define RTC_500MS_RATE                0x0F

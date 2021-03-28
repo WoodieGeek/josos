@@ -96,17 +96,7 @@ find_function(const char *const fname) {
 
     // LAB 3: Your code here:
 
-    struct Dwarf_Addrs addrs;
-    load_kernel_dwarf_info(&addrs);
-    uintptr_t offset;
-
-    if (!naive_address_by_fname(&addrs, fname, &offset)) {
-        return offset;
-    }
-
-    if (!address_by_fname(&addrs, fname, &offset)) {
-        return offset;
-    }
+    
 
     struct Elf64_Sym *start_sym_tab = (struct Elf64_Sym *)(uefi_lp->SymbolTableStart);
     struct Elf64_Sym *end_sym_tab = (struct Elf64_Sym *)(uefi_lp->SymbolTableEnd);
@@ -118,6 +108,18 @@ find_function(const char *const fname) {
             return start_sym_tab->st_value;
         }
         ++start_sym_tab;
+    }
+
+    struct Dwarf_Addrs addrs;
+    load_kernel_dwarf_info(&addrs);
+    uintptr_t offset;
+
+    if (!naive_address_by_fname(&addrs, fname, &offset)) {
+        return offset;
+    }
+
+    if (!address_by_fname(&addrs, fname, &offset)) {
+        return offset;
     }
 
     return 0;
