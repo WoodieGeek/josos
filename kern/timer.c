@@ -70,7 +70,17 @@ acpi_enable(void) {
     outb(fadt->SMI_CommandPort, fadt->AcpiEnable);
     while ((inw(fadt->PM1aControlBlock) & 1) == 0) /* nothing */
         ;
+
 }
+
+int check_checksum(uint8_t* start_table, size_t byte_count) {
+    uint8_t sum = 0;
+    for (size_t i = 0; i < byte_count; ++i) {
+        sum += start_table[i];
+    }
+    return sum;
+}
+
 
 static void *
 acpi_find_table(const char *sign) {
@@ -89,6 +99,46 @@ acpi_find_table(const char *sign) {
 
     // LAB 5: Your code here
 
+    static RSDP* rsdp = NULL;
+    static RSDT* rsdt = NULL;
+    static size_t headers_count = 0;
+    
+
+    if (rsdp == NULL) {
+        rsdp = mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
+
+        if (strncmp(rsdp->Signature, "RSD PTR ", sizeof(rsdp->Signature))) {
+            panic("rsdp signature is not equal to 'RSD PTR'.\n");
+        }
+        if (rsdp->Revision == 0) {
+            panic("rsdp Revision < 2.0.\n");
+        }
+        
+        if (check_checksum((uint8_t*)rsdp, 20)) {
+            panic("Invalid checksum.\n");
+        }
+    }
+    if (rsdt == NULL) {
+        rsdt = mmio_map_region(rsdp->RsdtAddress, sizeof(RSDT));
+        rsdt = mmio_remap_last_region(rsdp->RsdtAddress, rsdp, sizeof(RSDT), rsdt->h.Length);
+        if (check_checksum((uint8_t*)rsdt, rsdt->h.Length)) {
+            panic("Invalid checksum.\n");
+        }
+        headers_count = (rsdt->h.Length - sizeof(RSDT)) / 4;
+    }
+
+    for (size_t i = 0; i < headers_count; ++i) {
+        uint32_t header_pa = *(rsdt->PointerToOtherSDT + i);
+        ACPISDTHeader* header = mmio_map_region(header_pa, sizeof(ACPISDTHeader));
+        header = mmio_remap_last_region(header_pa, header, sizeof(ACPISDTHeader), header->Length);
+        if (check_checksum((uint8_t*)header, header->Length)) {
+            panic("Invalid checksum.\n");
+        }
+        if (!strncmp(header->Signature, sign, sizeof(header->Signature))) {
+            return header;
+        }
+    }
+    
     return NULL;
 }
 
@@ -101,6 +151,7 @@ get_fadt(void) {
     //       not always as their names
 
     static FADT *kfadt;
+    kfadt = acpi_find_table("FACP");
 
     return kfadt;
 }
@@ -112,6 +163,7 @@ get_hpet(void) {
     // (use acpi_find_table)
 
     static HPET *khpet;
+    khpet = acpi_find_table("HPET");
 
     return khpet;
 }
@@ -213,12 +265,23 @@ hpet_get_main_cnt(void) {
 void
 hpet_enable_interrupts_tim0(void) {
     // LAB 5: Your code here
-
+    //hpet_print_reg();
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+    hpetReg->TIM0_CONF = (IRQ_TIMER << 9) | HPET_TN_TYPE_CNF | HPET_TN_INT_ENB_CNF | HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM0_COMP = Peta / 2 / hpetFemto;
+    pic_irq_unmask(IRQ_TIMER);
+    //hpet_print_reg();
 }
 
 void
 hpet_enable_interrupts_tim1(void) {
     // LAB 5: Your code here
+    //hpet_print_reg();
+    hpetReg->GEN_CONF |= HPET_LEG_RT_CNF;
+    hpetReg->TIM0_CONF = (IRQ_CLOCK << 9) | HPET_TN_TYPE_CNF | HPET_TN_INT_ENB_CNF | HPET_TN_VAL_SET_CNF;
+    hpetReg->TIM0_COMP = 3 * Peta / 2 / hpetFemto;
+    pic_irq_unmask(IRQ_CLOCK);
+    //hpet_print_reg();
 }
 
 void
@@ -236,9 +299,22 @@ hpet_handle_interrupts_tim1(void) {
  * about pause instruction. */
 uint64_t
 hpet_cpu_frequency(void) {
-    static uint64_t cpu_freq;
-
     // LAB 5: Your code here
+    
+    static uint64_t cpu_freq = 0;
+    if (cpu_freq != 0) {
+        return cpu_freq;
+    }
+
+    uint64_t part_of_second = 100;
+    uint64_t timer_tic = hpetFreq / part_of_second;
+    uint64_t left_tic = hpet_get_main_cnt();
+    uint64_t left_tsc = read_tsc();
+
+    while (hpet_get_main_cnt() - left_tic < timer_tic) {
+        asm("pause");
+    }
+    cpu_freq = (read_tsc() - left_tsc) * part_of_second;
 
     return cpu_freq;
 }
@@ -254,9 +330,35 @@ pmtimer_get_timeval(void) {
  *      can be 24-bit or 32-bit. */
 uint64_t
 pmtimer_cpu_frequency(void) {
-    static uint64_t cpu_freq;
-
     // LAB 5: Your code here
+    static uint64_t cpu_freq = 0;
+    if (cpu_freq != 0) {
+        return cpu_freq;
+    }
+
+
+    uint64_t part_of_second = 100;
+    uint64_t timer_tic = PM_FREQ / part_of_second;
+    uint32_t left_tic = pmtimer_get_timeval();
+    uint64_t left_tsc = read_tsc();
+
+    uint64_t delta = 0;
+    while (delta < timer_tic) {
+        asm("pause");
+        uint32_t cur_tic = pmtimer_get_timeval();
+        if (cur_tic > left_tic) {
+            delta = cur_tic - left_tic;
+        } else {
+            if (left_tic - cur_tic > 0x00FFFFFF) {
+                delta = 0x00FFFFFFFF - left_tic + cur_tic;
+                cprintf("WTF\n");
+            } else {
+                delta = 0x00FFFFFF - left_tic + cur_tic;
+            }
+        }
+    }
+    uint64_t right_tcs = read_tsc();
+    cpu_freq = (right_tcs - left_tsc) * PM_FREQ / delta;
 
     return cpu_freq;
 }

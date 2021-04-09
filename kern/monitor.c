@@ -40,6 +40,9 @@ static struct Command commands[] = {
         {"kerninfo", "Display information about the kernel", mon_kerninfo},
         {"backtrace", "Print stack backtrace", mon_backtrace},
         {"magic_number", "Print magic number", mon_magic_number},
+        {"timer_start", "Start timer by name", mon_start},
+        {"timer_stop", "Stop current timer", mon_stop},
+        {"cpu_frequency", "Print cpu frequency by name", mon_frequency},
 };
 #define NCOMMANDS (sizeof(commands) / sizeof(commands[0]))
 
@@ -95,6 +98,29 @@ mon_magic_number(int argc, char **argv, struct Trapframe *tf) {
 /* Implement timer_start (mon_start), timer_stop (mon_stop), timer_freq (mon_frequency) commands. */
 // LAB 5: Your code here:
 
+int
+mon_start(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 2) {
+        return 1;
+    }
+    timer_start(argv[1]);
+    return 0;
+}
+
+int
+mon_stop(int argc, char **argv, struct Trapframe *tf) {
+    timer_stop();
+    return 0;
+}
+
+int
+mon_frequency(int argc, char **argv, struct Trapframe *tf) {
+    if (argc != 2) {
+        return 1;
+    }
+    timer_cpu_frequency(argv[1]);
+    return 0;
+}
 /* Kernel monitor command interpreter */
 
 static int
