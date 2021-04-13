@@ -14,11 +14,11 @@
 #ifndef trace_memory
 /* TIP: set this to (!!curenv)
  *      to enable logging after initiallization */
-#define trace_memory 0
+#define trace_memory 1
 #endif
 
 #ifndef trace_memory_more
-#define trace_memory_more 0
+#define trace_memory_more 1
 #endif
 
 #if LAB == 9 || LAB == 8
