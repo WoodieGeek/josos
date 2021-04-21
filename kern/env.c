@@ -217,6 +217,7 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
                 continue;
             }
             memcpy((void *)elf64_sym->st_value, &find_func, sizeof(void *));
+            *(void**)elf64_sym->st_value = (void*)find_func; //??
             ++elf64_sym;
         }
     }

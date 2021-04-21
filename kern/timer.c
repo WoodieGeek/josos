@@ -103,18 +103,18 @@ acpi_find_table(const char *sign) {
     static RSDP* rsdp = NULL;
     static RSDT* rsdt = NULL;
     static size_t headers_count = 0;
-    
 
     if (rsdp == NULL) {
         rsdp = mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
-
+        if (rsdp == NULL) {
+            panic("Cannot map region for RSDP");
+        }
         if (strncmp(rsdp->Signature, "RSD PTR ", sizeof(rsdp->Signature))) {
-            panic("rsdp signature is not equal to 'RSD PTR'.\n");
+            panic("rsdp signature is not equal to 'RSD PTR' #%s#.\n", rsdp->Signature);
         }
         if (rsdp->Revision == 0) {
             panic("rsdp Revision < 2.0.\n");
         }
-        
         if (check_checksum((uint8_t*)rsdp, 20)) {
             panic("Invalid checksum.\n");
         }

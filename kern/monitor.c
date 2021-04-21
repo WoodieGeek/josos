@@ -144,6 +144,15 @@ mon_memory(int argc, char **argv, struct Trapframe *tf) {
 
 /* Kernel monitor command interpreter */
 
+int mon_pagetable(int argc, char **argv, struct Trapframe *tf) {
+    dump_page_table(current_space->pml4);
+    return 0;
+}
+int mon_virt(int argc, char **argv, struct Trapframe *tf) {
+    dump_virtual_tree(current_space->root, current_space->root->class);
+    return 0;
+}
+
 static int
 runcmd(char *buf, struct Trapframe *tf) {
     int argc = 0;
