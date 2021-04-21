@@ -106,6 +106,7 @@ acpi_find_table(const char *sign) {
 
     if (rsdp == NULL) {
         rsdp = mmio_map_region(uefi_lp->ACPIRoot, sizeof(RSDP));
+        rsdp = mmio_remap_last_region(uefi_lp->ACPIRoot, rsdp, sizeof(RSDP), rsdp->Length);
         if (rsdp == NULL) {
             panic("Cannot map region for RSDP");
         }
@@ -121,7 +122,7 @@ acpi_find_table(const char *sign) {
     }
     if (rsdt == NULL) {
         rsdt = mmio_map_region(rsdp->RsdtAddress, sizeof(RSDT));
-        rsdt = mmio_remap_last_region(rsdp->RsdtAddress, rsdp, sizeof(RSDT), rsdt->h.Length);
+        rsdt = mmio_remap_last_region(rsdp->RsdtAddress, rsdt, sizeof(RSDT), rsdt->h.Length);
         if (check_checksum((uint8_t*)rsdt, rsdt->h.Length)) {
             panic("Invalid checksum.\n");
         }
