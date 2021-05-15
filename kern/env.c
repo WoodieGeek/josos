@@ -88,20 +88,39 @@ envid2env(envid_t envid, struct Env **env_store, bool need_check_perm) {
  */
 void
 env_init(void) {
+    /* kzalloc_region only works with current_space != NULL */
+
+    /* Allocate envs array with kzalloc_region
+     * (don't forget about rounding) */
+    // LAB 8: Your code here
+    envs = (struct Env*)(kzalloc_region(sizeof(struct Env) * NENV));
+    memset(envs, 0, sizeof(struct Env));
+
+    /* Map envs to UENVS read-only,
+     * but user-accessible (with PROT_USER_ set) */
+    // LAB 8: Your code here
+    if (map_region(&kspace, UENVS, NULL, PADDR(envs), UENVS_SIZE, PROT_R | PROT_USER_)) {
+        panic("Cannot map physical region");
+    }
 
     /* Set up envs array */
 
     // LAB 3: Your code here
-    env_free_list = &env_array[0];
+    env_free_list = envs;
+    struct Env* current = NULL;
+    struct Env* prev = NULL;
     for (int i = 0; i < NENV; ++i) {
-        env_array[i].env_status = ENV_FREE;
-        env_array[i].env_id = 0;
-        if (i != NENV - 1) {
-            env_array[i].env_link = &env_array[i + 1];
-        } else {
-            env_array[i].env_link = NULL;
+        current = (envs + i);
+
+        current->env_status = ENV_FREE;
+        current->env_id = 0;
+
+        if (prev != NULL) {
+            prev->env_link = current;
         }
+        prev = current;
     }
+    prev->env_link = NULL;
 }
 
 /* Allocates and initializes a new environment.
@@ -119,6 +138,10 @@ env_alloc(struct Env **newenv_store, envid_t parent_id, enum EnvType type) {
     struct Env *env;
     if (!(env = env_free_list))
         return -E_NO_FREE_ENV;
+
+    /* Allocate and set up the page directory for this environment. */
+    int res = init_address_space(&env->address_space);
+    if (res < 0) return res;
 
     /* Generate an env_id for this environment */
     int32_t generation = (env->env_id + (1 << ENVGENSHIFT)) & ~(NENV - 1);
@@ -257,11 +280,19 @@ bind_functions(struct Env *env, uint8_t *binary, size_t size, uintptr_t image_st
  *   'binary + ph->p_offset', should be copied to address
  *   ph->p_va.  Any remaining memory bytes should be cleared to zero.
  *   (The ELF header should have ph->p_filesz <= ph->p_memsz.)
+ *   Use functions from the previous labs to allocate and map pages.
  *
  *   All page protection bits should be user read/write for now.
  *   ELF segments are not necessarily page-aligned, but you can
  *   assume for this function that no two segments will touch
  *   the same page.
+ *
+ *   You may find a function like map_region useful.
+ *
+ *   Loading the segments is much simpler if you can move data
+ *   directly into the virtual addresses stored in the ELF binary.
+ *   So which page directory should be in force during
+ *   this function?
  *
  *   You must also do something with the program's entry point,
  *   to make sure that the environment starts executing there.
@@ -286,6 +317,9 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 
         void *start_cpy = (void *)(binary + current_header->p_offset);
         memcpy((void *)current_header->p_va, start_cpy, current_header->p_filesz);
+
+        map_region(&env->address_space, current_header->p_pa, NULL, current_header->p_va, current_header->p_filesz, PROT_R | PROT_W);
+
         ++current_header;
     }
 
@@ -295,6 +329,8 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
 
     bind_functions(env, binary, size, 0, 0);
 
+    // LAB 8: Your code here
+    lcr3(PADDR(env->address_space.pml4));
     return 0;
 }
 
@@ -306,6 +342,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
  */
 void
 env_create(uint8_t *binary, size_t size, enum EnvType type) {
+    // LAB 8: Your code here
     // LAB 3: Your code here
     struct Env *result = NULL;
     if (env_alloc(&result, 0, type) != 0) {
@@ -314,6 +351,7 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
     if (load_icode(result, binary, size) != 0) {
         panic("Cannot load env");
     }
+    result->binary = binary;
 }
 
 
@@ -323,6 +361,17 @@ env_free(struct Env *env) {
 
     /* Note the environment's demise. */
     if (trace_envs) cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, env->env_id);
+
+#ifndef CONFIG_KSPACE
+    /* If freeing the current environment, switch to kern_pgdir
+     * before freeing the page directory, just in case the page
+     * gets reused. */
+    if (&env->address_space == current_space)
+        switch_address_space(&kspace);
+
+    static_assert(MAX_USER_ADDRESS % HUGE_PAGE_SIZE == 0, "Misaligned MAX_USER_ADDRESS");
+    release_address_space(&env->address_space);
+#endif
 
     /* Return the environment to the free list */
     env->env_status = ENV_FREE;
@@ -347,6 +396,8 @@ env_destroy(struct Env *env) {
         curenv = NULL;
         sched_yield();
     }
+    // LAB 8: Your code here (set in_page_fault = 0)
+    in_page_fault = 0;
 }
 
 #ifdef CONFIG_KSPACE
@@ -408,6 +459,7 @@ env_pop_tf(struct Trapframe *tf) {
  *       2. Set 'curenv' to the new environment,
  *       3. Set its status to ENV_RUNNING,
  *       4. Update its 'env_runs' counter,
+ *       5. Use switch_address_space() to switch to its address space.
  * Step 2: Use env_pop_tf() to restore the environment's
  *       registers and starting execution of process.
 
@@ -436,7 +488,9 @@ env_run(struct Env *env) {
     curenv = env;
     curenv->env_status = ENV_RUNNING;
     ++curenv->env_runs;
+    switch_address_space(&(curenv->address_space));
     env_pop_tf(&curenv->env_tf);
+    // LAB 8: Your code here
 
     while (1) {}
 }
