@@ -96,12 +96,10 @@ env_init(void) {
 
     envs = (struct Env *)kzalloc_region(sizeof(*envs) * NENV);
     memset(envs, 0, sizeof(*envs) * NENV);
-    //cprintf("envs - %p\n", (void*)envs);
 
     /* Map envs to UENVS read-only,
      * but user-accessible (with PROT_USER_ set) */
     // LAB 8: Your code here
-    cprintf("here\n");
     if (map_region(current_space, UENVS, &kspace, (uintptr_t)envs, UENVS_SIZE, PROT_R | PROT_USER_))
         panic("Cannot map physical region at %p of size %lld", (void *)envs, UENVS_SIZE);
     /* Set up envs array */
@@ -296,7 +294,6 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
     struct Elf *elf = (struct Elf *)binary;
     struct Proghdr *ph = (struct Proghdr *)(binary + elf->e_phoff);
     if (elf->e_magic != ELF_MAGIC) {
-        cprintf("Unexpected ELF format\n");
         return -E_INVALID_EXE;
     }
 
@@ -314,7 +311,6 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
         size_t filesz2 = MIN(ph[i].p_filesz, memsz);
 
         if (safety_filesize < 0) {
-            cprintf("ph->p_filesz > ph->p_memsz\n");
             return -E_INVALID_EXE;
         } else {
             uintptr_t r_dst = ROUNDDOWN((uintptr_t)dst, PAGE_SIZE);
