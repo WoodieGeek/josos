@@ -53,6 +53,17 @@ load_user_dwarf_info(struct Dwarf_Addrs *addrs) {
 
     memset(addrs, 0, sizeof(*addrs));
 
+    struct Elf *user_elf = (struct Elf *)(binary);
+    struct Secthdr *sect_hdr = (struct Secthdr *)(binary + user_elf->e_shoff);
+    const char *sh_str = (char *)(binary + sect_hdr[user_elf->e_shstrndx].sh_offset);
+    for (size_t i = 0; i < user_elf->e_shnum; ++i) {
+        for (size_t j = 0; j < sizeof(sections) / sizeof(*sections); ++j) {
+            if (!strcmp(&sh_str[sect_hdr[i].sh_name], sections[j].name)) {
+                *sections[j].start = binary + sect_hdr[i].sh_offset;
+                *sections[j].end = binary + sect_hdr[i].sh_offset + sect_hdr[i].sh_size;
+            }
+        }
+    }
     /* Load debug sections from curenv->binary elf image */
     // LAB 8: Your code here
 }
@@ -81,6 +92,11 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
     /* Temporarily load kernel cr3 and return back once done.
     * Make sure that you fully understand why it is necessary. */
     // LAB 8: Your code here
+    //
+    uintptr_t old_cr3 = curenv->address_space.cr3;
+    if (old_cr3 != kspace.cr3) {
+        lcr3(kspace.cr3);
+    }
 
     /* Load dwarf section pointers from either
      * currently running program binary or use
@@ -89,8 +105,13 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
      * or kernel space */
     // LAB 8: Your code here:
 
+
     struct Dwarf_Addrs addrs;
-    load_kernel_dwarf_info(&addrs);
+    if (addr < MAX_USER_READABLE) {
+        load_user_dwarf_info(&addrs);
+    } else {
+        load_kernel_dwarf_info(&addrs);
+    }
 
     Dwarf_Off offset = 0, line_offset = 0;
     int res = info_by_address(&addrs, addr, &offset);
@@ -123,6 +144,9 @@ debuginfo_rip(uintptr_t addr, struct Ripdebuginfo *info) {
 
 
 error:
+    if (old_cr3 != kspace.cr3) {
+        lcr3(old_cr3);
+    }
     return res;
 }
 
@@ -136,7 +160,6 @@ find_function(const char *const fname) {
 
     // LAB 3: Your code here:
 
-    
 
     struct Elf64_Sym *start_sym_tab = (struct Elf64_Sym *)(uefi_lp->SymbolTableStart);
     struct Elf64_Sym *end_sym_tab = (struct Elf64_Sym *)(uefi_lp->SymbolTableEnd);

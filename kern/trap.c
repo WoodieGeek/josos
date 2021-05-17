@@ -98,12 +98,10 @@ trapname(int trapno) {
 void
 trap_init(void) {
     // LAB 4: Your code here
-#ifdef CONFIG_KSPACE
-    extern void (*clock_thdlr)(void);
-    idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, (uint64_t)(&clock_thdlr), 0);
+    // extern void (*clock_thdlr)(void);
+    // idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, (uintptr_t)(&clock_thdlr), 0);
+    // idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, (uintptr_t)(&clock_thdlr), 0);
     // LAB 5: Your code here
-    idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, (uint64_t)(&clock_thdlr), 0);
-#endif
 
 
     /* Insert trap handlers into IDT */
@@ -122,26 +120,26 @@ trap_init(void) {
     extern void (*gpflt_thdlr)(void);
     extern void (*pgflt_thdlr)(void);
     extern void (*fperr_thdlr)(void);
+
+
     extern void (*syscall_thdlr)(void);
 
+    idt[T_DIVIDE] = GATE(0, GD_KT, (uint64_t)&divide_thdlr, 0);
+    idt[T_DEBUG] = GATE(0, GD_KT, (uint64_t)&debug_thdlr, 0);
+    idt[T_NMI] = GATE(0, GD_KT, (uint64_t)&nmi_thdlr, 0);
+    idt[T_BRKPT] = GATE(0, GD_KT, (uint64_t)&brkpt_thdlr, 3);
+    idt[T_OFLOW] = GATE(0, GD_KT, (uint64_t)&oflow_thdlr, 0);
+    idt[T_BOUND] = GATE(0, GD_KT, (uint64_t)&bound_thdlr, 0);
+    idt[T_ILLOP] = GATE(0, GD_KT, (uint64_t)&illop_thdlr, 0);
+    idt[T_DEVICE] = GATE(0, GD_KT, (uint64_t)&device_thdlr, 0);
+    idt[T_TSS] = GATE(0, GD_KT, (uint64_t)&tss_thdlr, 0);
+    idt[T_SEGNP] = GATE(0, GD_KT, (uint64_t)&segnp_thdlr, 0);
+    idt[T_STACK] = GATE(0, GD_KT, (uint64_t)&stack_thdlr, 0);
+    idt[T_GPFLT] = GATE(0, GD_KT, (uint64_t)&gpflt_thdlr, 0);
+    idt[T_PGFLT] = GATE(0, GD_KT, (uint64_t)&pgflt_thdlr, 0);
+    idt[T_FPERR] = GATE(0, GD_KT, (uint64_t)&fperr_thdlr, 0);
 
-    idt[T_DIVIDE] = GATE(0, GD_KT, (uint64_t)(&divide_thdlr), 0);
-    idt[T_DEBUG] = GATE(0, GD_KT, (uint64_t)(&debug_thdlr), 0);
-    idt[T_NMI] = GATE(0, GD_KT, (uint64_t)(&nmi_thdlr), 0);
-    idt[T_BRKPT] = GATE(0, GD_KT, (uint64_t)(&brkpt_thdlr), 0);
-    idt[T_OFLOW] = GATE(0, GD_KT, (uint64_t)(&oflow_thdlr), 0);
-    idt[T_BOUND] = GATE(0, GD_KT, (uint64_t)(&bound_thdlr), 0);
-    idt[T_ILLOP] = GATE(0, GD_KT, (uint64_t)(&illop_thdlr), 0);
-    idt[T_DEVICE] = GATE(0, GD_KT, (uint64_t)(&device_thdlr), 0);
-    idt[T_TSS] = GATE(0, GD_KT, (uint64_t)(&tss_thdlr), 0);
-    idt[T_SEGNP] = GATE(0, GD_KT, (uint64_t)(&segnp_thdlr), 0);
-    idt[T_STACK] = GATE(0, GD_KT, (uint64_t)(&stack_thdlr), 0);
-    idt[T_GPFLT] = GATE(0, GD_KT, (uint64_t)(&gpflt_thdlr), 0);
-    idt[T_GPFLT] = GATE(0, GD_KT, (uint64_t)(&gpflt_thdlr), 0);
-    idt[T_PGFLT] = GATE(0, GD_KT, (uint64_t)(&pgflt_thdlr), 0);
-    idt[T_PGFLT] = GATE(0, GD_KT, (uint64_t)(&pgflt_thdlr), 0);
-    idt[T_FPERR] = GATE(0, GD_KT, (uint64_t)(&fperr_thdlr), 0);
-    idt[T_SYSCALL] = GATE(0, GD_KT, (uint64_t)(&syscall_thdlr), 0);
+    idt[T_SYSCALL] = GATE(0, GD_KT, (uint64_t)&syscall_thdlr, 3);
 
     /* Setup #PF handler dedicated stack
      * It should be switched on #PF because
@@ -199,6 +197,15 @@ trap_init_percpu(void) {
 }
 
 void
+clock_idt_init(void) {
+    extern void (*clock_thdlr)(void);
+    // init idt structure
+    idt[IRQ_OFFSET + IRQ_TIMER] = GATE(0, GD_KT, (uintptr_t)(&clock_thdlr), 0);
+    idt[IRQ_OFFSET + IRQ_CLOCK] = GATE(0, GD_KT, (uintptr_t)(&clock_thdlr), 0);
+    lidt(&idt_pd);
+}
+
+void
 print_trapframe(struct Trapframe *tf) {
     cprintf("TRAP frame at %p\n", tf);
     print_regs(&tf->tf_regs);
@@ -220,8 +227,7 @@ print_trapframe(struct Trapframe *tf) {
     if (tf->tf_trapno == T_PGFLT) {
         cprintf(" [%s, %s, %s]\n",
                 tf->tf_err & FEC_U ? "user" : "kernel",
-                tf->tf_err & FEC_W ? "write" : tf->tf_err & FEC_I ? "execute" :
-                                                                    "read",
+                tf->tf_err & FEC_W ? "write" : tf->tf_err & FEC_I ? "execute" : "read",
                 tf->tf_err & FEC_P ? "protection" : "not-present");
     } else
         cprintf("\n");
@@ -268,7 +274,6 @@ trap_dispatch(struct Trapframe *tf) {
     case T_BRKPT:
         // LAB 8: Your code here
         monitor(tf);
-        
         return;
     case IRQ_OFFSET + IRQ_SPURIOUS:
         /* Handle spurious interrupts
@@ -283,9 +288,7 @@ trap_dispatch(struct Trapframe *tf) {
     case IRQ_OFFSET + IRQ_CLOCK:
         // LAB 5: Your code here
         // LAB 4: Your code here
-        
-        //rtc_check_status();
-        //pic_send_eoi(IRQ_CLOCK);
+        // rtc_timer_pic_handle();
         timer_for_schedule->handle_interrupts();
         sched_yield();
         return;

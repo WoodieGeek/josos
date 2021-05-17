@@ -20,6 +20,7 @@
 static int
 sys_cputs(const char *s, size_t len) {
     // LAB 8: Your code here
+    user_mem_assert(curenv, s, len, PTE_U);
 
     /* Check that the user has permission to read memory [s, s+len).
     * Destroy the environment if not. */
@@ -56,16 +57,13 @@ static int
 sys_env_destroy(envid_t envid) {
     // LAB 8: Your code here.
     int res = 0;
-    struct Env* env;
+    struct Env *env;
     res = envid2env(envid, &env, 1);
     if (res < 0) {
         return -E_BAD_ENV;
     }
-    env_destroy(env);
-    return 0;
 
-
-#if 0 /* TIP: Use this snippet to log required for passing grade tests info */
+#if 1 /* TIP: Use this snippet to log required for passing grade tests info */
     if (trace_envs) {
         cprintf(env == curenv ?
                         "[%08x] exiting gracefully\n" :
@@ -74,6 +72,7 @@ sys_env_destroy(envid_t envid) {
     }
 #endif
 
+    env_destroy(env);
     return 0;
 }
 

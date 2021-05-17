@@ -70,7 +70,7 @@ void
 rtc_timer_init(void) {
     // LAB 4: Your code here
     // (use cmos_read8/cmos_write8)
-    
+
     uint8_t reg_b = cmos_read8(RTC_BREG);
     reg_b |= RTC_PIE;
     cmos_write8(RTC_BREG, reg_b);
@@ -78,13 +78,12 @@ rtc_timer_init(void) {
     uint8_t reg_a = cmos_read8(RTC_AREG);
     reg_a = RTC_SET_NEW_RATE(reg_a, RTC_500MS_RATE);
     cmos_write8(RTC_AREG, reg_a);
-
 }
 
 uint8_t
 rtc_check_status(void) {
     // LAB 4: Your code here
     // (use cmos_read8)
-    
+
     return cmos_read8(RTC_CREG);
 }

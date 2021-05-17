@@ -82,6 +82,8 @@ _alltraps:
 # all trap handlers' entry points
 # (Look up their list in inc/trap.h)
 
+TRAPHANDLER_NOEC(clock_thdlr, IRQ_OFFSET + IRQ_CLOCK)
+
 TRAPHANDLER_NOEC(divide_thdlr, T_DIVIDE)
 TRAPHANDLER_NOEC(debug_thdlr, T_DEBUG)
 TRAPHANDLER_NOEC(nmi_thdlr, T_NMI)
