@@ -112,6 +112,7 @@ env_init(void) {
         current = (envs + i);
         current->env_status = ENV_FREE;
         current->env_id = 0;
+        current->env_pgfault_upcall = NULL;
         if (prev != NULL) {
             prev->env_link = current;
         }
@@ -398,8 +399,8 @@ env_destroy(struct Env *env) {
 
     // LAB 3: Your code here
     env->env_status = ENV_DYING;
+    env_free(env);
     if (env == curenv) {
-        env_free(env);
         sched_yield();
     }
 

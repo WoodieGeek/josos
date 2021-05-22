@@ -772,13 +772,8 @@ memcpy_page(struct AddressSpace *dst, uintptr_t va, struct Page *page) {
     assert(dst);
     // LAB 7: Your code here
     struct AddressSpace *old_current = switch_address_space(dst);
-    //struct Page* virtual_page = page_lookup_virtual(dst->root, va, page->class, LOOKUP_ALLOC); // ищется виртуальная страница и выделаяется по заданному адресу, там же
-    // выделяется физическая страница
     set_wp(false);
     nosan_memcpy((void *)va, KADDR(page2pa(page)), CLASS_SIZE(page->class));
-    //nosan_memcpy(KADDR(page2pa(page)), KADDR(page2pa(virtual_page->phy)), CLASS_SIZE(page->class)); // копируем контент физ  страницу page в выделенную page_lookup_virtual
-    //физ страницу соотв. виртуальной странице
-    //nosan_memcpy(KADDR(page2pa(virtual_page->phy)), KADDR(page2pa(page)), CLASS_SIZE(page->class));
     set_wp(true);
     switch_address_space(old_current);
 }
@@ -1239,8 +1234,8 @@ force_alloc_page(struct AddressSpace *spc, uintptr_t va, int maxclass) {
         res = map_page(spc, va, page->phy, page->state & ~PROT_LAZY);
     } else {
         if (trace_memory) {
-            //cprintf("<%p> Allocating new page [%08lX, %08lX] flags=%x\n", spc,
-            //va, va + (long)CLASS_MASK(page->phy->class), page->state & PROT_ALL & ~PROT_LAZY);
+            cprintf("<%p> Allocating new page [%08lX, %08lX] flags=%x\n", spc,
+            va, va + (long)CLASS_MASK(page->phy->class), page->state & PROT_ALL & ~PROT_LAZY);
         }
 
         struct Page *phy = page->phy;

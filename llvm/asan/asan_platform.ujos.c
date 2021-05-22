@@ -65,7 +65,10 @@ platform_abort() {
 static bool
 asan_shadow_allocator(struct UTrapframe *utf) {
     // LAB 9: Your code here
-    return 0;
+    if (utf->utf_fault_va > asan_internal_shadow_start && utf->utf_fault_va < asan_internal_shadow_end) {
+        sys_alloc_region(curenv->env_id, SHADOW_FOR_ADDRESS(utf->utf_fault_va), 1, ALLOC_ONE);
+    }
+    return 1;
 }
 #endif
 
@@ -101,6 +104,10 @@ platform_asan_init() {
 
     /* 1. Program segments (text, data, rodata, bss) */
     // LAB 8: Your code here
+    platform_asan_unpoison((void *)(&__data_start), &__data_end - &__data_start);
+    platform_asan_unpoison((void *)(&__rodata_start), &__rodata_end - &__rodata_start);
+    platform_asan_unpoison((void *)(&__bss_start), &__bss_end - &__bss_start);
+    platform_asan_unpoison((void *)(&__text_start), &__text_end - &__text_start);
 
     /* 2. Stacks (USER_EXCEPTION_STACK_TOP, USER_STACK_TOP) */
     // LAB 8: Your code here
