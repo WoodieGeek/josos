@@ -153,7 +153,6 @@ sys_env_set_pgfault_upcall(envid_t envid, void *func) {
     if (res < 0) {
         return res;
     }
-    //user_mem_assert(curenv, func, sizeof(void*), PROT_USER_);
     result->env_pgfault_upcall = func;
     return 0;
 }
@@ -192,10 +191,13 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
     if (addr >= MAX_USER_ADDRESS  || PAGE_OFFSET(addr)) {
         return -E_INVAL;
     }
-    //if (perm & ~PTE_SYSCALL) {
-        //return -E_INVAL;
-    //}
-    res = map_region(&result->address_space, addr, NULL, 0, size, perm | PROT_USER_ | PROT_LAZY | ALLOC_ZERO);
+    if (perm & ALLOC_ONE) {
+        perm |= ~ALLOC_ZERO;
+    } else {
+        perm |= ALLOC_ZERO;
+        perm |= ~ALLOC_ONE;
+    }
+    res = map_region(&result->address_space, addr, NULL, 0, size, perm | PROT_USER_ | PROT_LAZY );
     if (res < 0) {
         cprintf("map region: %i\n", res);
         return -E_NO_MEM;
@@ -245,7 +247,9 @@ sys_map_region(envid_t srcenvid, uintptr_t srcva,
         return -E_INVAL;
     }
 
-    if (map_region(&dst_env->address_space, dstva, &src_env->address_space, srcva, size, perm | PROT_USER_) < 0) {
+    res = map_region(&dst_env->address_space, dstva, &src_env->address_space, srcva, size, perm | PROT_USER_);
+    if (res < 0) {
+        cprintf("sys_map_region -> map_regin failed: %i\n", res);
         return -E_NO_MEM;
     }
 
@@ -333,15 +337,12 @@ sys_ipc_try_send(envid_t envid, uint32_t value, uintptr_t srcva, size_t size, in
         if (PAGE_OFFSET(srcva)) {
             return -E_INVAL;
         }
-        res = sys_alloc_region(envid, to_env->env_ipc_dstva, MIN(size, to_env->env_ipc_maxsz), perm);
-        if (res < 0) {
-            return -E_INVAL;
-        }
-        res = map_region(&to_env->address_space, to_env->env_ipc_dstva, &curenv->address_space, srcva, MIN(size, to_env->env_ipc_maxsz), perm);
+        res = map_region(&to_env->address_space, to_env->env_ipc_dstva, &curenv->address_space, srcva, PAGE_SIZE, perm | PROT_USER_);
         if (res < 0) {
             return res;
         }
-
+        to_env->env_ipc_maxsz = MIN(size, to_env->env_ipc_maxsz);
+        to_env->env_ipc_perm = perm;
     } else {
         to_env->env_ipc_perm = 0;
     }
@@ -379,8 +380,12 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
         return -E_INVAL;
     }
     curenv->env_ipc_recving = 1;
-    curenv->env_ipc_dstva = dstva;
-    curenv->env_ipc_maxsz = maxsize;
+
+    if (dstva < MAX_USER_ADDRESS) {
+        curenv->env_ipc_dstva = dstva;
+        curenv->env_ipc_maxsz = maxsize;
+    }
+
     curenv->env_status = ENV_NOT_RUNNABLE;
     curenv->env_tf.tf_regs.reg_rax = 0;
     sched_yield();
@@ -398,7 +403,11 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
 static int
 sys_region_refs(uintptr_t addr, size_t size, uintptr_t addr2, uintptr_t size2) {
     // LAB 10: Your code here
-    return 0;
+    int maxref = region_maxref(current_space, addr, size);
+    if (addr2 >= MAX_USER_ADDRESS) return maxref;
+
+    int maxref2 = region_maxref(current_space, addr2, size2);
+    return maxref - maxref2;
 }
 
 /* Dispatches to the correct kernel function, passing the arguments. */

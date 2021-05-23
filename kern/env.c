@@ -355,6 +355,9 @@ env_create(uint8_t *binary, size_t size, enum EnvType type) {
     if (env_alloc(&result, 0, type) != 0) {
         panic("Cannot allocate a new env");
     }
+    if (type == ENV_TYPE_FS) {
+        result->env_tf.tf_rflags |= FL_IOPL_3;
+    }
     if (load_icode(result, binary, size) != 0) {
         panic("Cannot load env");
     }
