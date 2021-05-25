@@ -192,14 +192,14 @@ sys_alloc_region(envid_t envid, uintptr_t addr, size_t size, int perm) {
         return -E_INVAL;
     }
     if (perm & ALLOC_ONE) {
-        perm |= ~ALLOC_ZERO;
+        perm &= ~ALLOC_ZERO;
     } else {
         perm |= ALLOC_ZERO;
-        perm |= ~ALLOC_ONE;
+        perm &= ~ALLOC_ONE;
     }
     res = map_region(&result->address_space, addr, NULL, 0, size, perm | PROT_USER_ | PROT_LAZY );
     if (res < 0) {
-        cprintf("map region: %i\n", res);
+        cprintf("map region: %i  addr: %ld size %ld\n", res, addr, size);
         return -E_NO_MEM;
     }
     
@@ -405,6 +405,23 @@ sys_ipc_recv(uintptr_t dstva, uintptr_t maxsize) {
 static int
 sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
     // LAB 11: Your code here
+    struct Env* env = NULL;
+    int res = envid2env(envid, &env, false);
+    if (res < 0) {
+        return -E_BAD_ENV;
+    }
+    user_mem_assert(env, tf, sizeof(struct Trapframe), PROT_USER_ | PROT_R);
+
+    nosan_memcpy((void*)&env->env_tf, (void*)tf, sizeof(struct Trapframe));
+
+    env->env_tf.tf_cs = GD_UT | 3;
+    env->env_tf.tf_ds = GD_UD | 3;
+    env->env_tf.tf_es = GD_UD | 3;
+    env->env_tf.tf_ss = GD_UD | 3;
+
+    env->env_tf.tf_rflags &= 0xFFF;
+    env->env_tf.tf_rflags |= FL_IF;
+
     return 0;
 }
 
@@ -454,7 +471,7 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
     } else if (syscallno == SYS_env_set_status) {
         return sys_env_set_status((envid_t)a1, (int)a2);
     } else if (syscallno == SYS_env_set_trapframe) {
-
+        return sys_env_set_trapframe((envid_t)a1, (struct Trapframe *)a2);
     } else if (syscallno == SYS_env_set_pgfault_upcall) {
         return sys_env_set_pgfault_upcall((envid_t) a1, (void *)a2);
     } else if (syscallno == SYS_yield) {

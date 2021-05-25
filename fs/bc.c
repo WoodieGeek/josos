@@ -4,8 +4,9 @@
 /* Return the virtual address of this disk block. */
 void *
 diskaddr(uint32_t blockno) {
-    if (blockno == 0 || (super && blockno >= super->s_nblocks))
+    if (blockno == 0 || (super && blockno >= super->s_nblocks)) {
         panic("bad block number %08x in diskaddr", blockno);
+    }
     void *r = (void *)(uintptr_t)(DISKMAP + blockno * BLKSIZE);
 #ifdef SANITIZE_USER_SHADOW_BASE
     platform_asan_unpoison(r, BLKSIZE);
@@ -71,7 +72,7 @@ flush_block(void *addr) {
     if (res < 0) {
         panic("flush_block -> ide_write failed: %i\n", res);
     }
-    res = sys_map_region(CURENVID, addr, CURENVID, addr, PAGE_SIZE, get_uvpt_entry(addr) & PTE_SYSCALL);
+    res = sys_map_region(CURENVID, addr, CURENVID, addr, PAGE_SIZE, get_prot(addr));
     if (res < 0) {
         panic("flush_block -> sys_map_region failed: %i\n", res);
     }

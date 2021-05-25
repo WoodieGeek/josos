@@ -123,8 +123,10 @@ trap_init(void) {
     extern void (*pgflt_thdlr)(void);
     extern void (*fperr_thdlr)(void);
 
-
     extern void (*syscall_thdlr)(void);
+
+    extern void (*kbd_thdlr)(void);
+    extern void (*serial_thdlr)(void);
 
     idt[T_DIVIDE] = GATE(0, GD_KT, (uint64_t)&divide_thdlr, 0);
     idt[T_DEBUG] = GATE(0, GD_KT, (uint64_t)&debug_thdlr, 0);
@@ -142,6 +144,9 @@ trap_init(void) {
     idt[T_FPERR] = GATE(0, GD_KT, (uint64_t)&fperr_thdlr, 0);
 
     idt[T_SYSCALL] = GATE(0, GD_KT, (uint64_t)&syscall_thdlr, 3);
+
+    idt[IRQ_OFFSET + IRQ_KBD] = GATE(0, GD_KT, (uintptr_t)(&kbd_thdlr), 3);
+    idt[IRQ_OFFSET + IRQ_SERIAL] = GATE(0, GD_KT, (uintptr_t)(&serial_thdlr), 3);
 
     /* Setup #PF handler dedicated stack
      * It should be switched on #PF because
@@ -303,6 +308,14 @@ trap_dispatch(struct Trapframe *tf) {
         return;
         /* Handle keyboard and serial interrupts. */
         // LAB 11: Your code here
+    case IRQ_OFFSET + IRQ_KBD:
+        kbd_intr();
+        sched_yield();
+        return;
+    case IRQ_OFFSET + IRQ_SERIAL:
+        serial_intr();
+        sched_yield();
+        return;
     default:
         print_trapframe(tf);
         if (!(tf->tf_cs & 3))

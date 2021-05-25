@@ -330,8 +330,7 @@ load_icode(struct Env *env, uint8_t *binary, size_t size) {
             memset((void *)ph[i].p_va + filesz2, 0, safety_filesize);
         }
     }
-    int res = map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
-    cprintf("%d\n", res);
+    map_region(&env->address_space, USER_STACK_TOP - USER_STACK_SIZE, NULL, 0, USER_STACK_SIZE, PROT_R | PROT_W | PROT_USER_ | ALLOC_ZERO);
     switch_address_space(&kspace);
     env->env_tf.tf_rip = elf->e_entry;
     uintptr_t image_start = 0;

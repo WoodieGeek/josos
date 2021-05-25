@@ -1765,6 +1765,7 @@ init_memory(void) {
     if (trace_init) cprintf("Memory allocator is initiallized\n");
 
     detect_memory();
+
     check_physical_tree(&root);
     if (trace_init) cprintf("Physical memory tree is correct\n");
 
@@ -1952,7 +1953,6 @@ static uintptr_t user_mem_check_addr;
 int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
     // LAB 8: Your code here
-    //perm = perm | PTE_P;
 
     const void *end = va + len;
     const void *va_b = va;
@@ -1960,7 +1960,7 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm) {
     struct Page *root = env->address_space.root;
     while (va < end) {
         struct Page *smallest_page = page_lookup_virtual(root, (uintptr_t)va, 0, 0);
-        if (!smallest_page->phy || (smallest_page->state & perm) != perm) {
+        if (!smallest_page->phy || (smallest_page->state & PAGE_PROT(perm)) != PAGE_PROT(perm)) {
             user_mem_check_addr = (uintptr_t)MAX(va, va_b);
             return -E_FAULT;
         }
