@@ -110,10 +110,12 @@ get_time(void) {
 int
 gettime(void) {
     // LAB 12: your code here
-    int res = 0;
-
-
-    return res;
+    nmi_disable();
+    while (cmos_read8(RTC_AREG) & RTC_UPDATE_IN_PROGRESS);
+    int time = get_time();
+    if (time != get_time()) time = get_time();
+    nmi_enable();
+    return time;
 }
 
 void

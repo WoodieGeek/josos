@@ -96,6 +96,12 @@ env_init(void) {
     // LAB 12: Your code here
 
     /* kzalloc_region only works with current_space != NULL */
+    if (current_space != NULL) {
+        vsys = kzalloc_region(UVSYS_SIZE);
+    }
+    if (map_region(current_space, UVSYS, &kspace, (uintptr_t)vsys, UVSYS_SIZE, PROT_R | PROT_USER_)) {
+        panic("cant map vsys to UVSYS\n");
+    }
 
     /* Allocate envs array with kzalloc_region
      * (don't forget about rounding) */

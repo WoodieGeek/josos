@@ -430,7 +430,7 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf) {
 static int
 sys_gettime(void) {
     // LAB 12: Your code here
-    return 0;
+    return gettime();
 }
 
 /*
@@ -489,6 +489,8 @@ syscall(uintptr_t syscallno, uintptr_t a1, uintptr_t a2, uintptr_t a3, uintptr_t
         return sys_ipc_try_send((envid_t)a1, (uint32_t)a2, a3,(size_t)a4,(int)a5);
     } else if (syscallno == SYS_ipc_recv) {
         return sys_ipc_recv(a1, a2);
+    } else if (syscallno == SYS_gettime) {
+        return sys_gettime();
     }
     // LAB 9: Your code here
     // LAB 11: Your code here
